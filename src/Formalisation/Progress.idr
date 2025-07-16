@@ -13,6 +13,21 @@ data Reduce : (this : Term ctxt type)
            -> (that : Term ctxt type)
                    -> Type
   where
+    SimplifyEqL  : Reduce      this that
+                -> Reduce (Eq  this      right)
+                          (Eq       that right)
+
+    SimplifyEqR  : Value       left
+                -> Reduce          this that
+                -> Reduce (Eq left this      )
+                          (Eq left      that )
+
+    ReduceEqBool : Reduce (Eq (B a) (B b))
+                          (B  ( a  ==  b ))
+
+    ReduceEqString : Reduce (Eq (S a) (S b))
+                            (S  ( a  == b ))
+
     SimplifyAndL : Reduce      this that
                 -> Reduce (And this      right)
                           (And      that right)
@@ -63,6 +78,7 @@ progress : (term : Term Nil type)
 progress (Var _) impossible
 
 progress (B x) = Stop B
+progress (S x) = Stop S
 
 progress (And l r) with (progress l)
   progress (And (B n) r) | (Stop B) with (progress r)
@@ -72,6 +88,24 @@ progress (And l r) with (progress l)
       = Step (SimplifyAndR B step)
   progress (And l r) | (Step step)
     = Step (SimplifyAndL step)
+
+progress (Eq l r) with (progress l)
+  progress (Eq (B n) r) | (Stop B) with (progress r)
+    progress (Eq (B n) (B m)) | (Stop B) | (Stop B)
+      = Step ReduceEqBool
+    progress (Eq (B n) r) | (Stop B) | (Step step)
+      = Step (SimplifyEqR B step)
+  progress (Eq l r) | (Step step)
+    = Step (SimplifyEqL step)
+
+progress (Eq l r) with (progress l)
+  progress (Eq (S n) r) | (Stop S) with (progress r)
+    progress (Eq (S n) (S m)) | (Stop S) | (Stop S)
+      = Step ReduceEqString
+    progress (Eq (S n) r) | (Stop S) | (Step step)
+      = Step (SimplifyEqR S step)
+  progress (Eq l r) | (Step step)
+    = Step (SimplifyEqL step)
 
 progress (Or l r) with (progress l)
   progress (Or (B n) r) | (Stop B) with (progress r)

@@ -15,9 +15,12 @@ data Term : (  context : List Ty)
                       -> Type
     where
       B : Bool -> Term ctxt BOOL
-      --S : String -> Term ctxt STRING
+      S : String -> Term ctxt STRING
 
       And : (l,r : Term ctxt BOOL)
+                -> Term ctxt BOOL
+      
+      Eq  : (l,r : Term ctxt t)
                 -> Term ctxt BOOL
 
       Or  : (l,r : Term ctxt BOOL)

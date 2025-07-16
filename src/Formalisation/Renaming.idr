@@ -25,8 +25,14 @@ rename f (Var x)
 rename f (B x)
   = B x
 
+rename f (S x)
+  = S x
+
 rename f (And l r)
   = And (rename f l) (rename f r)
+
+rename f (Eq l r)
+  = Eq (rename f l) (rename f r)
 
 rename f (Or l r)
   = Or (rename f l) (rename f r)
