@@ -12,3 +12,9 @@ example
 
 example1 : Term Nil STRING
 example1 = S "TestString"
+
+example2 : Term Nil BOOL
+example2 = EqString (S "Peter") (S "Peter")
+
+example3 : Term Nil BOOL 
+example3 = EqBool (B True) (B True)

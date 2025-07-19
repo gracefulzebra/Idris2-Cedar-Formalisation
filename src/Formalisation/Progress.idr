@@ -13,20 +13,29 @@ data Reduce : (this : Term ctxt type)
            -> (that : Term ctxt type)
                    -> Type
   where
-    SimplifyEqL  : Reduce      this that
-                -> Reduce (Eq  this      right)
-                          (Eq       that right)
+    SimplifyEqBoolL  : Reduce          this that
+                    -> Reduce (EqBool  this      right)
+                              (EqBool       that right)
 
-    SimplifyEqR  : Value       left
-                -> Reduce          this that
-                -> Reduce (Eq left this      )
-                          (Eq left      that )
+    SimplifyEqBoolR  : Value          left
+                    -> Reduce              this that
+                    -> Reduce (EqBool left this      )
+                              (EqBool left      that )
 
-    ReduceEqBool : Reduce (Eq (B a) (B b))
+    SimplifyEqStringL  : Reduce            this that
+                      -> Reduce (EqString  this      right)
+                                (EqString       that right)
+
+    SimplifyEqStringR  : Value            left
+                      -> Reduce                this that
+                      -> Reduce (EqString left this      )
+                                (EqString left      that )
+
+    ReduceEqBool : Reduce (EqBool (B a) (B b))
                           (B  ( a  ==  b ))
 
-    ReduceEqString : Reduce (Eq (S a) (S b))
-                            (S  ( a  == b ))
+    ReduceEqString : Reduce (EqString (S a) (S b))
+                            (B  ( a  == b ))
 
     SimplifyAndL : Reduce      this that
                 -> Reduce (And this      right)
@@ -38,7 +47,7 @@ data Reduce : (this : Term ctxt type)
                           (And left      that)
 
     ReduceAnd : Reduce (And (B a)    (B b))
-                        (B   (  a  &&    b))
+                       (B   (  a  &&    b))
 
     SimplifyOrL : Reduce      this that
                -> Reduce  (Or this      right)
@@ -89,23 +98,23 @@ progress (And l r) with (progress l)
   progress (And l r) | (Step step)
     = Step (SimplifyAndL step)
 
-progress (Eq l r) with (progress l)
-  progress (Eq (B n) r) | (Stop B) with (progress r)
-    progress (Eq (B n) (B m)) | (Stop B) | (Stop B)
+progress (EqBool l r) with (progress l)
+  progress (EqBool (B n) r) | (Stop B) with (progress r)
+    progress (EqBool (B n) (B m)) | (Stop B) | (Stop B)
       = Step ReduceEqBool
-    progress (Eq (B n) r) | (Stop B) | (Step step)
-      = Step (SimplifyEqR B step)
-  progress (Eq l r) | (Step step)
-    = Step (SimplifyEqL step)
+    progress (EqBool (B n) r) | (Stop B) | (Step step)
+      = Step (SimplifyEqBoolR B step)
+  progress (EqBool l r) | (Step step)
+    = Step (SimplifyEqBoolL step)
 
-progress (Eq l r) with (progress l)
-  progress (Eq (S n) r) | (Stop S) with (progress r)
-    progress (Eq (S n) (S m)) | (Stop S) | (Stop S)
+progress (EqString l r) with (progress l)
+  progress (EqString (S n) r) | (Stop S) with (progress r)
+    progress (EqString (S n) (S m)) | (Stop S) | (Stop S)
       = Step ReduceEqString
-    progress (Eq (S n) r) | (Stop S) | (Step step)
-      = Step (SimplifyEqR S step)
-  progress (Eq l r) | (Step step)
-    = Step (SimplifyEqL step)
+    progress (EqString (S n) r) | (Stop S) | (Step step)
+      = Step (SimplifyEqStringR S step)
+  progress (EqString l r) | (Step step)
+    = Step (SimplifyEqStringL step)
 
 progress (Or l r) with (progress l)
   progress (Or (B n) r) | (Stop B) with (progress r)

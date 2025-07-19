@@ -7,10 +7,6 @@ import Formalisation.Renaming
 %default total
 --Deps =====================
 
-eqHelper : {t : Ty}
-         -> Term new t -> Term new t -> Term new BOOL
-eqHelper l r = Eq l r
-
 public export
 weakens : {old, new : List Ty}
 
@@ -47,8 +43,11 @@ subst f (S x)
 subst f (And l r)
   = And (subst f l) (subst f r)
 
-subst f (Eq l r)
-  = Eq (subst f l) (subst f r)
+subst f (EqBool l r)
+  = EqBool (subst f l) (subst f r)
+
+subst f (EqString l r)
+  = EqString (subst f l) (subst f r)
 
 subst f (Or l r)
   = Or (subst f l) (subst f r)

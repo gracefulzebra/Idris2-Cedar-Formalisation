@@ -2,6 +2,7 @@ module Formalisation.Terms
 
 --Deps =====================
 import public Data.List.Elem
+--import public Formalisation.Custom
 
 %default total
 --Deps =====================
@@ -20,7 +21,11 @@ data Term : (  context : List Ty)
       And : (l,r : Term ctxt BOOL)
                 -> Term ctxt BOOL
       
-      Eq  : (l,r : Term ctxt t)
+      --Distinct equality term for each Type.
+      EqString  : (l,r : Term ctxt STRING)
+                -> Term ctxt BOOL
+            
+      EqBool  : (l,r : Term ctxt BOOL)
                 -> Term ctxt BOOL
 
       Or  : (l,r : Term ctxt BOOL)

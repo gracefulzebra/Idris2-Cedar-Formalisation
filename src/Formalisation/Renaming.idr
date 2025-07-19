@@ -31,8 +31,11 @@ rename f (S x)
 rename f (And l r)
   = And (rename f l) (rename f r)
 
-rename f (Eq l r)
-  = Eq (rename f l) (rename f r)
+rename f (EqBool l r)
+  = EqBool (rename f l) (rename f r)
+
+rename f (EqString l r)
+  = EqString (rename f l) (rename f r)
 
 rename f (Or l r)
   = Or (rename f l) (rename f r)
