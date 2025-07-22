@@ -10,3 +10,4 @@ data Value : (term : Term ctxt type)
       where
         S : Value (S s)
         B : Value (B b)
+        ERef : Value (ERef identity (S tag))

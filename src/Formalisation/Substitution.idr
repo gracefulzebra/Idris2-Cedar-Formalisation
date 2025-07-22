@@ -40,6 +40,9 @@ subst f (B x)
 subst f (S x)
   = S x
 
+subst f (ERef tag t)
+  = ERef tag (subst f t)
+
 subst f (And l r)
   = And (subst f l) (subst f r)
 
@@ -48,6 +51,9 @@ subst f (EqBool l r)
 
 subst f (EqString l r)
   = EqString (subst f l) (subst f r)
+
+subst f (EqERef l r)
+  = EqERef (subst f l) (subst f r)
 
 subst f (Or l r)
   = Or (subst f l) (subst f r)

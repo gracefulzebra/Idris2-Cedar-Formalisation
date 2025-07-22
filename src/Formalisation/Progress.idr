@@ -31,11 +31,23 @@ data Reduce : (this : Term ctxt type)
                       -> Reduce (EqString left this      )
                                 (EqString left      that )
 
+    SimplifyEqERefL : Reduce          this that
+                   -> Reduce (EqERef  this      right)
+                             (EqERef       that right)
+
+    SimplifyEqERefR : Value          left
+                   -> Reduce              this that
+                   -> Reduce (EqERef left this      )
+                             (EqERef left      that )
+
     ReduceEqBool : Reduce (EqBool (B a) (B b))
                           (B  ( a  ==  b ))
 
     ReduceEqString : Reduce (EqString (S a) (S b))
                             (B  ( a  == b ))
+
+    ReduceEqERef : Reduce (EqERef (ERef id1 (S t1)) (ERef id2 (S t2)))
+                          (B    ((id1 == id2) && (t1 == t2)))
 
     SimplifyAndL : Reduce      this that
                 -> Reduce (And this      right)
@@ -88,6 +100,7 @@ progress (Var _) impossible
 
 progress (B x) = Stop B
 progress (S x) = Stop S
+progress (ERef identity (S tag)) = Stop (ERef {identity} {tag})
 
 progress (And l r) with (progress l)
   progress (And (B n) r) | (Stop B) with (progress r)
@@ -115,6 +128,15 @@ progress (EqString l r) with (progress l)
       = Step (SimplifyEqStringR S step)
   progress (EqString l r) | (Step step)
     = Step (SimplifyEqStringL step)
+
+progress (EqERef l r) with (progress l)
+  progress (EqERef (ERef n) r) | (Stop ERef) with (progress r)
+    progress (EqERef (ERef n) (ERef m)) | (Stop ERef) | (Stop ERef)
+      = Step ReduceEqEUID
+    progress (EqERef (ERef n) r) | (Stop ERef) | (Step step)
+      = Step (SimplifyEqERefR ERef step)
+  progress (EqERef l r) | (Step step)
+    = Step (SimplifyEqEREfL step)
 
 progress (Or l r) with (progress l)
   progress (Or (B n) r) | (Stop B) with (progress r)

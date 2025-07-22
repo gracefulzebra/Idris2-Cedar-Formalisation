@@ -8,7 +8,7 @@ import public Data.List.Elem
 --Deps =====================
 
 public export
-data Ty = BOOL | STRING
+data Ty = BOOL | STRING | EntityRef
 
 public export
 data Term : (  context : List Ty)
@@ -18,6 +18,10 @@ data Term : (  context : List Ty)
       B : Bool -> Term ctxt BOOL
       S : String -> Term ctxt STRING
 
+      ERef : (id : String) 
+                -> Term ctxt STRING 
+                -> Term ctxt EntityRef
+
       And : (l,r : Term ctxt BOOL)
                 -> Term ctxt BOOL
       
@@ -26,6 +30,9 @@ data Term : (  context : List Ty)
                 -> Term ctxt BOOL
             
       EqBool  : (l,r : Term ctxt BOOL)
+                -> Term ctxt BOOL
+
+      EqERef  : (l,r : Term ctxt EntityRef)
                 -> Term ctxt BOOL
 
       Or  : (l,r : Term ctxt BOOL)

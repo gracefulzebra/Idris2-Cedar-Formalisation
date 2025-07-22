@@ -28,6 +28,9 @@ rename f (B x)
 rename f (S x)
   = S x
 
+rename f (ERef tag t)
+  = ERef tag (rename f t)
+
 rename f (And l r)
   = And (rename f l) (rename f r)
 
@@ -36,6 +39,9 @@ rename f (EqBool l r)
 
 rename f (EqString l r)
   = EqString (rename f l) (rename f r)
+
+rename f (EqERef l r)
+  = EqERef (rename f l) (rename f r)
 
 rename f (Or l r)
   = Or (rename f l) (rename f r)
