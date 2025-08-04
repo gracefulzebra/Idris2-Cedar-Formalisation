@@ -4,29 +4,26 @@ module CedarLite
 import Data.List.Quantifiers
 
 ||| Some Cedar Types
+public export
 data Ty = BOOL
         | STR
         | E String               -- Entities
         | R (List (String, Ty))  -- Records
 
-||| The specfication of an authorisation request.
-|||
-||| Authorisation request specficiations capture the IDs of the entities
-||| for the PAR and the Record type for the C.
+||| The Specfication of an Authorisation Request.
 data AuthContextSpec
   = ACS String               -- principle
         String               -- action
         String               -- resource
         (List (String, Ty))  -- context
 
--- We mutually define terms as record fields contain terms.
-
+|||Entity Store Spec
 data EntityStore : Type 
   where
     ES : List (String, String, String) 
       -> EntityStore
 
-|||Find <Maybe> Entity in Store
+|||Helper Function for Finding <Maybe> Entity in Store
 entityLookup : EntityStore -> String -> String -> Maybe String
 entityLookup (ES[]) eType eId = Nothing -- Empty Store / No Store Left to Search
 entityLookup (ES((eTypei, eIdi, eDatai) :: xs)) eType eId =
@@ -71,11 +68,6 @@ mutual
       VarResorce   : Term (ACS p a r cs) (E r)
       VarContext   : Term (ACS p a r cs) (R cs)
 
--- Values are not defined as predicates on terms, but a separate structure.
--- That is, the authorisation context has been removed.
---
--- This approaches follows the definitional interpreter way of doing things.
-
 mutual
   ||| A records field but as a value.
   data VField : (String, Ty) -> Type
@@ -85,6 +77,7 @@ mutual
                  -> VField (label,ty)
 
   ||| Terms that are values
+  public export
   data Value : Ty -> Type
     where
       VB : Bool -> Value BOOL
@@ -101,7 +94,7 @@ data AuthContext : AuthContextSpec -> Type where
     -> EntityStore
     -> AuthContext (ACS p_id a_id r_id ctxt)
 
-||| Helper Function for Retreiving Field From Context
+||| Helper Function for Checking Field From Context
 hasField : String -> All VField pairs -> Bool
 hasField fieldName [] = False
 hasField fieldName (VF label _ :: xs) = 
@@ -109,6 +102,7 @@ hasField fieldName (VF label _ :: xs) =
     then True  
     else hasField fieldName xs
 
+||| Helper Function for Getting Field From Context
 getField : String -> All VField pairs -> Maybe (Value STR)
 getField fieldName [] = Nothing
 getField fieldName (VF label val :: xs) =
@@ -118,6 +112,8 @@ getField fieldName (VF label val :: xs) =
       _      => Nothing 
   else getField fieldName xs 
 
+
+||| Policy Definitions
 data Effect = PERMIT | FORBID
 
 Eq Effect where
@@ -130,17 +126,11 @@ data Decision = ALLOW | DENY
 data Policy : AuthContextSpec -> Type where
   MkPolicy : Effect -> Term acs BOOL -> Policy acs
 
--- Now we evaluate things:
 mutual
-  ||| Evaluation of a policy expression against an authorisation context.
-  |||
-  |||  Missing is how to resolve entity references
-  |||
-  ||| Returns a value.
-  
   eval : AuthContext acs -> Term acs ty -> Value ty
   eval ac (B x) = VB x
   eval ac (S str) = VS str
+  
   eval ac (ERef id tm) = 
     case eval ac tm of
       VS eId => 
