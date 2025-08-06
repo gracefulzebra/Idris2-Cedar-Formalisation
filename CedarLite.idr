@@ -1,7 +1,7 @@
 module CedarLite
 
 -- TO gain access to the `All` quantifier
-import Data.List.Quantifiers
+import public Data.List.Quantifiers
 
 ||| Some Cedar Types
 public export
@@ -11,6 +11,7 @@ data Ty = BOOL
         | R (List (String, Ty))  -- Records
 
 ||| The Specfication of an Authorisation Request.
+public export
 data AuthContextSpec
   = ACS String               -- principle
         String               -- action
@@ -18,6 +19,7 @@ data AuthContextSpec
         (List (String, Ty))  -- context
 
 |||Entity Store Spec
+public export
 data EntityStore : Type 
   where
     ES : List (String, String, String) 
@@ -43,6 +45,7 @@ mutual
                 -> Field acs (label, ty)
 
   ||| Core cedar expressions
+  public export
   data Term : AuthContextSpec -> Ty -> Type
     where
       B : Bool   -> Term acs BOOL
@@ -70,6 +73,7 @@ mutual
 
 mutual
   ||| A records field but as a value.
+  public export
   data VField : (String, Ty) -> Type
     where
       VF : (label : String)
@@ -86,6 +90,7 @@ mutual
       VStruct : All VField kvs -> Value (R kvs)
 
 ||| The authorisation context but with a specification.
+public export
 data AuthContext : AuthContextSpec -> Type where
   AC : Value (E p_id)
     -> Value (E a_id)
@@ -114,6 +119,7 @@ getField fieldName (VF label val :: xs) =
 
 
 ||| Policy Definitions
+public export
 data Effect = PERMIT | FORBID
 
 Eq Effect where
@@ -121,12 +127,15 @@ Eq Effect where
   FORBID == FORBID = True
   _ == _ = False
 
+public export
 data Decision = ALLOW | DENY
 
+public export
 data Policy : AuthContextSpec -> Type where
   MkPolicy : Effect -> Term acs BOOL -> Policy acs
 
 mutual
+  public export
   eval : AuthContext acs -> Term acs ty -> Value ty
   eval ac (B x) = VB x
   eval ac (S str) = VS str
@@ -188,12 +197,14 @@ mutual
 cedarEval : AuthContext acs -> Term acs BOOL -> Value BOOL
 cedarEval = eval
 
+public export
 evalPolicy : AuthContext acs -> Policy acs -> (Effect, Bool)
 evalPolicy ac (MkPolicy effect condition) =
   case eval ac condition of
     VB result => (effect, result)
     _         => (effect, False)
 
+public export    
 auth : AuthContext acs -> List (Policy acs) -> Decision
 auth ac policies =
   let results = map (evalPolicy ac) policies
@@ -203,67 +214,5 @@ auth ac policies =
       (True, False) => ALLOW --Explicit Permit
       _             => DENY --Default Deny 
 
-testStore : EntityStore
-testStore = ES [ 
-                 ("User", "oliver", "Oliver Heaney"),
-                 ("User", "peter", "Peter Piper"),
-                 ("Document", "diss", "Masters Dissertation")
-                ]
 
-testContext : AuthContext (ACS "User" "Action" "Document" [])
-testContext = AC (VERef "User" (VS "Oliver Heaney"))
-                 (VERef "Action" (VS "Read"))  
-                 (VERef "Document" (VS "Masters Dissertation"))
-                 (VStruct [])
-                 testStore
-
-test1 : Value BOOL
-test1 = eval testContext (EqualString (S "hello") (S "hello"))
- 
-test2 : Value BOOL
-test2 = eval testContext (EqualString (S "Oliver Heaney") (S "Peter Piper"))
-
-test3 : Value BOOL
-test3 = eval testContext (And (B False) (B False)) 
-
--- Test Combining And and Equal
-test4 : Value BOOL
-test4 = eval testContext (And (EqualString (S "hello") (S "hello")) (B True))
-
-testContextWithFields : AuthContext (ACS "User" "Action" "Document" [("department", STR), ("level", STR)])
-testContextWithFields = AC (VERef "User" (VS "Oliver Heaney"))
-                           (VERef "Action" (VS "Read"))  
-                           (VERef "Document" (VS "Masters Dissertation"))
-                           (VStruct [VF "department" (VS "Cybersecurity"), VF "level" (VS "Expert")])
-                           testStore
-
-test5 : Value BOOL
-test5 = eval testContextWithFields (Has VarContext "department")
-
-test6 : Value BOOL  
-test6 = eval testContextWithFields (Has VarContext "level")       
-
-test7 : Value STR
-test7 = eval testContextWithFields (Dot VarContext "level") --IT WORKS!!!!!!!!!!!!!!!!!!
-
-policyPermitOliver : Policy (ACS "User" "Action" "Document" [])
-policyPermitOliver = MkPolicy PERMIT (EqualEntity 
-  VarPrinciple 
-  (ERef "User" (S "oliver")))
-
--- Policy: Permit if department is Cybersecurity  
-policyPermitCyber : Policy (ACS "User" "Action" "Document" [("department", STR), ("level", STR)])
-policyPermitCyber = MkPolicy PERMIT (EqualString
-  (Dot VarContext "department")
-  (S "Cybersecurity"))
-
--- Test authorization decisions
-testAuth1 : Decision
-testAuth1 = auth testContext [policyPermitOliver]  -- Should be ALLOW
-
-testAuth2 : Decision  
-testAuth2 = auth testContextWithFields [policyPermitCyber]  -- Should be ALLOW
-
-testAuth3 : Decision
-testAuth3 = auth testContext []  -- Empty policies - should be DENY
 -- [ EOF ]
