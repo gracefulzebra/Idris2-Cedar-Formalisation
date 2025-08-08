@@ -138,4 +138,33 @@ testComplexPolicyDeny2 : Decision
 testComplexPolicyDeny2 = auth testContextLowClearance [complexPolicy2]
 -- Expected Result: DENY
 
+-- TEST 5: Singleton Type Integration with Bool
+-- ============================
+
+-- Policy using EqualSelf which returns TRUE singleton type
+policySingletonTrue : Policy (ACS "User" "Action" "Photo" [])
+policySingletonTrue = MkPolicy PERMIT 
+  (Convert TB (EqualSelf VarPrinciple))  -- Convert TRUE to BOOL
+  (B True)                               
+  (B True)                               
+  []
+
+-- Test: TRUE singleton should work with And
+testSingletonTrue : Decision
+testSingletonTrue = auth testContextAlice [policySingletonTrue]
+-- Expected Result: ALLOW
+
+-- Policy mixing TRUE singleton types
+policySingletonMixed : Policy (ACS "User" "Action" "Photo" [])
+policySingletonMixed = MkPolicy PERMIT
+  (Convert TB (EqualSelf VarPrinciple))  -- Convert TRUE to BOOL
+  (Convert TB (EqualSelf VarAction))      
+  (Convert TB (EqualSelf VarResource))   
+  []
+
+-- Test: Multiple TRUE singletonsall convert properly
+testSingletonMixed : Decision  
+testSingletonMixed = auth testContextAlice [policySingletonMixed]
+-- Expected Result: ALLOW
+
 -- [ EOF ]

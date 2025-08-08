@@ -21,6 +21,7 @@ data AuthContextSpec
         (List (String, Ty))  -- context
 
 ||| Subtyping Relations Between Singleton Types and Bool Type
+public export
 data SubType : (x, y : Ty) -> Type where
   Refl : SubType x x
   
@@ -85,8 +86,10 @@ mutual
 
       VarPrinciple : Term (ACS p a r cs) (E p)
       VarAction    : Term (ACS p a r cs) (E a)
-      VarResorce   : Term (ACS p a r cs) (E r)
+      VarResource   : Term (ACS p a r cs) (E r)
       VarContext   : Term (ACS p a r cs) (R cs)
+
+      Convert : SubType x y -> Term acs x -> Term acs y
 
 mutual
   ||| A records field but as a value.
@@ -158,6 +161,22 @@ data Policy : AuthContextSpec -> Type where
            -> List (Term (ACS p a r ctxt) BOOL)  -- When conditions
            -> Policy (ACS p a r ctxt)
 
+convertVal : SubType x y -> Value x -> Value y
+convertVal Refl val = val 
+convertVal TB VTRUE = VB True
+convertVal FB VFALSE = VB False
+convertVal (Trans a b) val = convertVal b (convertVal a val)
+
+boolValue : {ty : Ty} -> Value ty -> Bool
+boolValue {ty = BOOL} (VB b) = b
+boolValue {ty = TRUE} VTRUE = 
+  case convertVal TB VTRUE of
+    VB b => b
+boolValue {ty = FALSE} VFALSE = 
+  case convertVal FB VFALSE of
+    VB b => b
+boolValue _ = False
+
 mutual
   public export
   eval : AuthContext acs -> Term acs ty -> Value ty
@@ -190,9 +209,9 @@ mutual
   eval ac (EqualSelf a) = VTRUE
 
   eval ac (And a b) =
-    case (eval ac a, eval ac b) of
-      (VB True, VB True) => VB True -- Matching True VB Values
-      _                  => VB False -- Mismatching or non VB Values = Rejection
+    let aVal = eval ac a
+        bVal = eval ac b
+    in VB (boolValue aVal && boolValue bVal)
 
   eval ac (Has rec fieldName) =
     case eval ac rec of
@@ -208,9 +227,11 @@ mutual
 
   eval ac (Struct x) = VStruct (evalStruct ac x)
 
+  eval ac (Convert prf term) = convertVal prf (eval ac term)
+
   eval (AC x y z w store) VarPrinciple = x
   eval (AC x y z w store) VarAction = y
-  eval (AC x y z w store) VarResorce = z
+  eval (AC x y z w store) VarResource = z
   eval (AC x y z w store) VarContext = w
 
   ||| Dealing with fields
@@ -225,12 +246,6 @@ mutual
 
 cedarEval : AuthContext acs -> Term acs BOOL -> Value BOOL
 cedarEval = eval
-
-boolValue : {ty : Ty} -> Value ty -> Bool
-boolValue {ty = BOOL} (VB b) = b
-boolValue {ty = TRUE} VTRUE = True
-boolValue {ty = FALSE} VFALSE = False
-boolValue _ = False
 
 public export
 toExpr : Policy (ACS p a r ctxt) -> Term (ACS p a r ctxt) BOOL
