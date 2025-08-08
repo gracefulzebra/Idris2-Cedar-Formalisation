@@ -6,6 +6,8 @@ import public Data.List.Quantifiers
 ||| Some Cedar Types
 public export
 data Ty = BOOL
+        | TRUE
+        | FALSE
         | STR
         | E String               -- Entities
         | R (List (String, Ty))  -- Records
@@ -17,6 +19,17 @@ data AuthContextSpec
         String               -- action
         String               -- resource
         (List (String, Ty))  -- context
+
+||| Subtyping Relations Between Singleton Types and Bool Type
+data SubType : (x, y : Ty) -> Type where
+  Refl : SubType x x
+  
+  Trans : SubType x y
+       -> SubType y z
+       -> SubType x z
+  
+  TB : SubType TRUE BOOL
+  FB : SubType FALSE BOOL
 
 |||Entity Store Spec
 public export
@@ -48,8 +61,11 @@ mutual
   public export
   data Term : AuthContextSpec -> Ty -> Type
     where
-      B : Bool   -> Term acs BOOL
       S : String -> Term acs STR
+      B : Bool   -> Term acs BOOL
+
+      BTRUE : Term acs TRUE
+      BFALSE : Term acs FALSE
 
       ERef : (id : String)
           -> (tm : Term acs STR)
@@ -59,6 +75,7 @@ mutual
 
       EqualString : Term acs STR -> Term acs STR -> Term acs BOOL
       EqualEntity : Term acs (E eId) -> Term acs (E eId) -> Term acs BOOL
+      EqualSelf : Term acs ty -> Term acs TRUE
 
       And : Term acs BOOL -> Term acs BOOL -> Term acs BOOL
 
@@ -85,6 +102,8 @@ mutual
   data Value : Ty -> Type
     where
       VB : Bool -> Value BOOL
+      VTRUE : Value TRUE
+      VFALSE : Value FALSE
       VS : String -> Value STR
       VERef : (id : String) -> Value STR -> Value (E id)
       VStruct : All VField kvs -> Value (R kvs)
@@ -129,16 +148,24 @@ Eq Effect where
 
 public export
 data Decision = ALLOW | DENY
-
+  
 public export
 data Policy : AuthContextSpec -> Type where
-  MkPolicy : Effect -> Term acs BOOL -> Policy acs
+  MkPolicy : Effect 
+           -> Term (ACS p a r ctxt) BOOL    -- Principal constraint
+           -> Term (ACS p a r ctxt) BOOL    -- Action constraint  
+           -> Term (ACS p a r ctxt) BOOL    -- Resource constraint
+           -> List (Term (ACS p a r ctxt) BOOL)  -- When conditions
+           -> Policy (ACS p a r ctxt)
 
 mutual
   public export
   eval : AuthContext acs -> Term acs ty -> Value ty
-  eval ac (B x) = VB x
   eval ac (S str) = VS str
+  eval ac (B x) = VB x
+
+  eval ac BTRUE = VTRUE
+  eval ac BFALSE = VFALSE
   
   eval ac (ERef id tm) = 
     case eval ac tm of
@@ -159,6 +186,8 @@ mutual
     case (eval ac a, eval ac b) of
       (VERef _ (VS aData), VERef _ (VS bData)) => VB (aData == bData) --Only Matching on Dereferenced ERefs
       _                                        => VB False -- Mismatching or non ERef Values = Rejection
+
+  eval ac (EqualSelf a) = VTRUE
 
   eval ac (And a b) =
     case (eval ac a, eval ac b) of
@@ -197,12 +226,31 @@ mutual
 cedarEval : AuthContext acs -> Term acs BOOL -> Value BOOL
 cedarEval = eval
 
+boolValue : {ty : Ty} -> Value ty -> Bool
+boolValue {ty = BOOL} (VB b) = b
+boolValue {ty = TRUE} VTRUE = True
+boolValue {ty = FALSE} VFALSE = False
+boolValue _ = False
+
+public export
+toExpr : Policy (ACS p a r ctxt) -> Term (ACS p a r ctxt) BOOL
+toExpr (MkPolicy effect principalExpr actionExpr resourceExpr context) =
+  let -- Combine when cond
+      whenExpr = case context of
+        [] => B True
+        [cond] => cond
+        (cond :: rest) => foldl And cond rest
+      
+      -- Conjunct.
+      scopeExpr = And (And principalExpr actionExpr) resourceExpr
+  in And scopeExpr whenExpr
+
 public export
 evalPolicy : AuthContext acs -> Policy acs -> (Effect, Bool)
-evalPolicy ac (MkPolicy effect condition) =
-  case eval ac condition of
-    VB result => (effect, result)
-    _         => (effect, False)
+evalPolicy ac policy =
+  let (MkPolicy effect _ _ _ _) = policy
+      result = boolValue (eval ac (toExpr policy))
+  in (effect, result)
 
 public export    
 auth : AuthContext acs -> List (Policy acs) -> Decision
@@ -212,7 +260,7 @@ auth ac policies =
       forbids = filter (\(eff, cond) => eff == FORBID && cond) results
   in case (length permits > 0, length forbids > 0) of
       (True, False) => ALLOW --Explicit Permit
-      _             => DENY --Default Deny 
+      _             => DENY --Default Deny
 
 
 -- [ EOF ]
