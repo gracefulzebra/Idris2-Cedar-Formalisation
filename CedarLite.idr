@@ -86,7 +86,7 @@ mutual
 
       VarPrinciple : Term (ACS p a r cs) (E p)
       VarAction    : Term (ACS p a r cs) (E a)
-      VarResource   : Term (ACS p a r cs) (E r)
+      VarResource  : Term (ACS p a r cs) (E r)
       VarContext   : Term (ACS p a r cs) (R cs)
 
       Convert : SubType x y -> Term acs x -> Term acs y
@@ -169,12 +169,8 @@ convertVal (Trans a b) val = convertVal b (convertVal a val)
 
 boolValue : {ty : Ty} -> Value ty -> Bool
 boolValue {ty = BOOL} (VB b) = b
-boolValue {ty = TRUE} VTRUE = 
-  case convertVal TB VTRUE of
-    VB b => b
-boolValue {ty = FALSE} VFALSE = 
-  case convertVal FB VFALSE of
-    VB b => b
+boolValue {ty = TRUE} VTRUE = True
+boolValue {ty = FALSE} VFALSE = False
 boolValue _ = False
 
 mutual
@@ -243,21 +239,18 @@ mutual
     evalStruct x (F l y :: z) | with_pat with (evalStruct x z)
       evalStruct x (F l y :: z) | h | t = VF l h :: t
 
-
 cedarEval : AuthContext acs -> Term acs BOOL -> Value BOOL
 cedarEval = eval
 
 public export
 toExpr : Policy (ACS p a r ctxt) -> Term (ACS p a r ctxt) BOOL
 toExpr (MkPolicy effect principalExpr actionExpr resourceExpr context) =
-  let -- Combine when cond
+  let -- Combine 'when' cond
       whenExpr = case context of
         [] => B True
         [cond] => cond
         (cond :: rest) => foldl And cond rest
-      
-      -- Conjunct.
-      scopeExpr = And (And principalExpr actionExpr) resourceExpr
+      scopeExpr = And (And principalExpr actionExpr) resourceExpr-- Conjunct.
   in And scopeExpr whenExpr
 
 public export
