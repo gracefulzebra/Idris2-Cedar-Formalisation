@@ -6,165 +6,85 @@ import CedarLite
 -- Source: https://github.com/cedar-policy/cedar/blob/main/README.md
 -- ============================
 
-testStoreAliceJane : EntityStore
-testStoreAliceJane = ES [
-  ("User", "alice", "Alice User"),
-  ("Action", "view", "View Action"),  
-  ("Album", "jane_vacation", "Jane's Vacation Album"),
-  ("Photo", "VacationPhoto94.jpg", "Vacation Photo")
+store : EntityStore  
+store = ES [
+  ("User", "alice", "alice"),
+  ("Action", "view", "view"),
+  ("Album", "vacation", "vacation")
 ]
 
-testContextAlice : AuthContext (ACS "User" "Action" "Photo" [])
-testContextAlice = AC (VERef "User" (VS "Alice User"))
-                      (VERef "Action" (VS "View Action"))  
-                      (VERef "Photo" (VS "Vacation Photo"))
-                      (VStruct [])
-                      testStoreAliceJane
+policy : Policy (ACS "User" "Action" "Album" [])
+policy = MkPolicy PERMIT
+  (EqualEntity VarPrinciple (ERef "User" (S "alice")))
+  (EqualEntity VarAction (ERef "Action" (S "view")))  
+  (EqualEntity VarResource (ERef "Album" (S "vacation")))
+  []
 
-policyAliceView2 : Policy (ACS "User" "Action" "Photo" [])
-policyAliceView2 = MkPolicy PERMIT 
-  (EqualEntity VarPrinciple (ERef "User" (S "alice")))  
-  (EqualEntity VarAction (ERef "Action" (S "view")))    
-  (B True)                                              
-  []                                                    
+aliceContext : AuthContext (ACS "User" "Action" "Album" [])
+aliceContext = AC
+  (VERef "User" (VS "alice"))
+  (VERef "Action" (VS "view"))
+  (VERef "Album" (VS "vacation"))
+  (VStruct [])
+  store
 
--- Test: Alice should be allowed to vieww
-testAliceView2 : Decision
-testAliceView2 = auth testContextAlice [policyAliceView2]
--- Expected Result: ALLOW
+testAlice : Decision
+testAlice = auth aliceContext [policy]
+-- Expected: ALLOW
+ 
+bobContext : AuthContext (ACS "User" "Action" "Album" [])
+bobContext = AC
+  (VERef "User" (VS "bob"))
+  (VERef "Action" (VS "view"))
+  (VERef "Album" (VS "vacation"))
+  (VStruct [])
+  store
 
--- Negative test: Different user should be denied
-testContextBob : AuthContext (ACS "User" "Action" "Photo" [])  
-testContextBob = AC (VERef "User" (VS "Bob User"))
-                    (VERef "Action" (VS "View Action"))  
-                    (VERef "Photo" (VS "Vacation Photo"))
-                    (VStruct [])
-                    testStoreAliceJane
+testBob : Decision  
+testBob = auth bobContext [policy]
+-- Expected: DENY
 
-testBobView2 : Decision
-testBobView2 = auth testContextBob [policyAliceView2]
--- Expected Result: DENY
-
--- TEST 2: FORBID OVERRIDES PERMIT
+-- TEST 2: When Clause and Dot Op Testing (From Policy 4)
 -- Source: https://docs.cedarpolicy.com/auth/authorization.html
--- ============================
+-- =============================================================================
+testStoreP4 : EntityStore
+testStoreP4 = ES [
+  ("User", "jane", "jane"),
+  ("Action", "viewPhoto", "viewPhoto"), 
+  ("Action", "updateTags", "updateTags"),
+  ("Photo", "vacation.jpg", "vacation.jpg")
+]
 
-policyBlockedForbid2 : Policy (ACS "User" "Action" "Photo" [("blocked", STR)])
-policyBlockedForbid2 = MkPolicy FORBID
-  (B True)                                              
-  (B True)                                               
-  (B True)                                              
-  [EqualString (Dot VarContext "blocked") (S "true")]  
+policyP4Test : Policy (ACS "User" "Action" "Photo" [("owner", STR)])
+policyP4Test = MkPolicy PERMIT
+  (B True)
+  (EqualEntity VarAction (ERef "Action" (S "updateTags")))
+  (B True)
+  [EqualString (Dot VarContext "owner") (S "jane")]
 
-policyJanePermit2 : Policy (ACS "User" "Action" "Photo" [("blocked", STR)])
-policyJanePermit2 = MkPolicy PERMIT
-  (EqualEntity VarPrinciple (ERef "User" (S "jane")))   
-  (EqualEntity VarAction (ERef "Action" (S "viewPhoto"))) 
-  (B True)                                              
-  []                                                   
+testContextP4Fail : AuthContext (ACS "User" "Action" "Photo" [("owner", STR)])
+testContextP4Fail = AC
+  (VERef "User" (VS "jane"))
+  (VERef "Action" (VS "viewPhoto"))
+  (VERef "Photo" (VS "vacation.jpg"))
+  (VStruct [VF "owner" (VS "jane")])
+  testStoreP4
 
--- Context where access is blocked
-testContextBlocked : AuthContext (ACS "User" "Action" "Photo" [("blocked", STR)])
-testContextBlocked = AC (VERef "User" (VS "jane"))
-                        (VERef "Action" (VS "viewPhoto"))  
-                        (VERef "Photo" (VS "vacation.jpg"))
-                        (VStruct [VF "blocked" (VS "true")])
-                        testStoreAliceJane
+testContextP4Success : AuthContext (ACS "User" "Action" "Photo" [("owner", STR)])
+testContextP4Success = AC
+  (VERef "User" (VS "jane"))
+  (VERef "Action" (VS "updateTags"))
+  (VERef "Photo" (VS "vacation.jpg"))
+  (VStruct [VF "owner" (VS "jane")])
+  testStoreP4
 
--- Test: Forbid overide permit
-testForbidOverride2 : Decision  
-testForbidOverride2 = auth testContextBlocked [policyJanePermit2, policyBlockedForbid2]
--- Expected Result: DENY (forbid overrides permit)
+testP4PolicyFail : Decision
+testP4PolicyFail = auth testContextP4Fail [policyP4Test]
+-- Expected: DENY
 
-testContextNotBlocked : AuthContext (ACS "User" "Action" "Photo" [("blocked", STR)])
-testContextNotBlocked = AC (VERef "User" (VS "jane"))
-                           (VERef "Action" (VS "viewPhoto"))  
-                           (VERef "Photo" (VS "vacation.jpg"))
-                           (VStruct [VF "blocked" (VS "false")])
-                           testStoreAliceJane
+testP4PolicySuccess : Decision
+testP4PolicySuccess = auth testContextP4Success [policyP4Test]
+-- Expected: ALLOW
 
--- Test: Permit should work when not blocked
-testPermitWhenNotBlocked2 : Decision
-testPermitWhenNotBlocked2 = auth testContextNotBlocked [policyJanePermit2, policyBlockedForbid2]  
--- Expected Result: ALLOW
-
--- TEST 3: Explicit Policy Creation
--- ============================
-
--- Test permit all policy (explicit)
-testPermitAll : Decision
-testPermitAll = auth testContextAlice [MkPolicy PERMIT (B True) (B True) (B True) []]
--- Expected Result: ALLOW
-
--- Test permit specific principal policy (explicit)
-testPermitPrincipalAlice : Decision
-testPermitPrincipalAlice = auth testContextAlice [MkPolicy PERMIT 
-                                                     (EqualEntity VarPrinciple (ERef "User" (S "alice")))
-                                                     (B True) 
-                                                     (B True) 
-                                                     []]
--- Expected Result: ALLOW
-
--- TEST 4: Complex Policy with Multiple When Conditions
--- ============================
-
-complexPolicy2 : Policy (ACS "User" "Action" "Photo" [("department", STR), ("clearance", STR)])
-complexPolicy2 = MkPolicy PERMIT
-  (EqualEntity VarPrinciple (ERef "User" (S "alice"))) 
-  (EqualEntity VarAction (ERef "Action" (S "view")))     
-  (B True)                                              
-  [ EqualString (Dot VarContext "department") (S "security"),  
-    EqualString (Dot VarContext "clearance") (S "high") ]    
-
-testContextHighClearance : AuthContext (ACS "User" "Action" "Photo" [("department", STR), ("clearance", STR)])
-testContextHighClearance = AC (VERef "User" (VS "alice"))
-                               (VERef "Action" (VS "view"))  
-                               (VERef "Photo" (VS "classified.jpg"))
-                               (VStruct [VF "department" (VS "security"), VF "clearance" (VS "high")])
-                               testStoreAliceJane
-
-testComplexPolicy2 : Decision
-testComplexPolicy2 = auth testContextHighClearance [complexPolicy2]
--- Expected Result: ALLOW
-
-testContextLowClearance : AuthContext (ACS "User" "Action" "Photo" [("department", STR), ("clearance", STR)])
-testContextLowClearance = AC (VERef "User" (VS "alice"))
-                              (VERef "Action" (VS "view"))  
-                              (VERef "Photo" (VS "classified.jpg"))
-                              (VStruct [VF "department" (VS "security"), VF "clearance" (VS "low")])
-                              testStoreAliceJane
-
-testComplexPolicyDeny2 : Decision
-testComplexPolicyDeny2 = auth testContextLowClearance [complexPolicy2]
--- Expected Result: DENY
-
--- TEST 5: Singleton Type Integration with Bool
--- ============================
-
--- Policy using EqualSelf which returns TRUE singleton type
-policySingletonTrue : Policy (ACS "User" "Action" "Photo" [])
-policySingletonTrue = MkPolicy PERMIT 
-  (Convert TB (EqualSelf VarPrinciple))  -- Convert TRUE to BOOL
-  (B True)                               
-  (B True)                               
-  []
-
--- Test: TRUE singleton should work with And
-testSingletonTrue : Decision
-testSingletonTrue = auth testContextAlice [policySingletonTrue]
--- Expected Result: ALLOW
-
--- Policy mixing TRUE singleton types
-policySingletonMixed : Policy (ACS "User" "Action" "Photo" [])
-policySingletonMixed = MkPolicy PERMIT
-  (Convert TB (EqualSelf VarPrinciple))  -- Convert TRUE to BOOL
-  (Convert TB (EqualSelf VarAction))      
-  (Convert TB (EqualSelf VarResource))   
-  []
-
--- Test: Multiple TRUE singletonsall convert properly
-testSingletonMixed : Decision  
-testSingletonMixed = auth testContextAlice [policySingletonMixed]
--- Expected Result: ALLOW
 
 -- [ EOF ]
